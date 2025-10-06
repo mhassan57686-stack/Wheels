@@ -33,7 +33,7 @@ const ForgotPassword = () => {
         <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
           <View style={styles.header}>
             <Image
-              source={require('../../assets/images/MetaWheel.png')}
+              source={require('../../assets/images/logo.png')}
               style={styles.logo}
             />
             <Text style={styles.title}>Forgot Password</Text>
@@ -93,8 +93,8 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   logo: {
-    width: 200,
-    height: 230,
+    width: 150,
+    height: 150,
     resizeMode: 'contain',
     tintColor: '#ffffff',
   },
@@ -102,7 +102,7 @@ const styles = StyleSheet.create({
     fontSize: 28,
     fontWeight: '700',
     color: '#FFFFFF',
-    marginTop: 10,
+    marginTop: 40,
     textAlign: 'center',
   },
   formContainer: {

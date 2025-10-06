@@ -2,30 +2,41 @@ import React, { useEffect } from 'react';
 import {
   View,
   Image,
-  Text,
   StyleSheet,
   Animated,
 } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import LinearGradient from 'react-native-linear-gradient';
+import useAuthStore from '../../store/authStore';
 
 const SplashScreen = () => {
   const navigation = useNavigation();
   const fadeAnim = new Animated.Value(0);
+  const { token, isAuthenticated } = useAuthStore();
 
   useEffect(() => {
+    // Start logo fade-in animation
     Animated.timing(fadeAnim, {
       toValue: 1,
       duration: 1500,
       useNativeDriver: true,
     }).start();
 
+    // Check authentication after a short delay
     const timer = setTimeout(() => {
-      navigation.replace('LoginScreen');
-    }, 5000);
+      console.log('Zustand state on app start:', useAuthStore.getState());
+      if (isAuthenticated && token) {
+        console.log('Token found in storage:', token);
+        navigation.replace('Main');
+      } else {
+        console.log('No token found');
+        navigation.replace('LoginScreen');
+      }
+    }, 3000); // Reduced to 3 seconds for faster UX
+
     return () => clearTimeout(timer);
-  }, [navigation, fadeAnim]);
+  }, [navigation, fadeAnim, token, isAuthenticated]);
 
   return (
     <SafeAreaProvider>
@@ -35,11 +46,10 @@ const SplashScreen = () => {
           style={styles.container}
         >
           <View style={styles.content}>
-            <Image
+            <Animated.Image
               source={require('../../assets/images/logo.png')}
-              style={styles.logo}
+              style={[styles.logo, { opacity: fadeAnim }]}
             />
-        
           </View>
         </LinearGradient>
       </SafeAreaView>
@@ -50,7 +60,7 @@ const SplashScreen = () => {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor:'#142F50',
+    backgroundColor: '#142F50',
   },
   container: {
     flex: 1,
@@ -61,23 +71,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   logo: {
-    width:150,
+    width: 150,
     height: 250,
     resizeMode: 'contain',
     tintColor: '#ffffff',
     marginBottom: 20,
-  },
-  appName: {
-    fontSize: 36,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-    textAlign: 'center',
-    textTransform: 'uppercase',
-    letterSpacing: 2,
-    marginBottom: 20,
-    textShadowColor: '#000',
-    textShadowOffset: { width: 1, height: 1 },
-    textShadowRadius: 2,
   },
 });
 

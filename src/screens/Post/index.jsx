@@ -1,3 +1,4 @@
+// Updated PostScreen.js with multiple image upload and backend integration
 import React, { useState } from 'react';
 import {
   View,
@@ -7,44 +8,98 @@ import {
   StyleSheet,
   TouchableOpacity,
   ScrollView,
+  Alert,
   Platform,
 } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation, useRoute } from '@react-navigation/native';
+import { useNavigation } from '@react-navigation/native';
+import { launchImageLibrary } from 'react-native-image-picker';
+import useAuthStore from '../../store/authStore';
+import axios from 'axios';
 
 const PostScreen = () => {
   const navigation = useNavigation();
-  const route = useRoute();
-  const { addNewCar } = route.params;
   const [model, setModel] = useState('');
   const [price, setPrice] = useState('');
   const [location, setLocation] = useState('');
-  const [description, setDescription] = useState(''); 
-  const [image, setImage] = useState(null);
+  const [description, setDescription] = useState('');
+  const [images, setImages] = useState([]); // Array for multiple images
+  const { token } = useAuthStore();
 
-  const handleSubmit = () => {
-    if (model.trim() && price.trim() && location.trim()) {
-      const newCar = {
-        id: (Math.random() * 1000).toString(),
-        model,
-        price: `PKR ${price}`,
-        location,
-        description,
-        image: image || require('../../assets/images/honda.png'),
-        timestamp: new Date().toISOString(),
-      };
-      addNewCar(newCar);
-      setModel('');
-      setPrice('');
-      setLocation('');
-      setDescription(''); 
-      setImage(null);
-      navigation.navigate('Home');
+  const getBaseUrl = () => {
+    if (Platform.OS === 'ios') {
+      return 'http://localhost:5000';
+    } else {
+      return 'http://10.0.2.2:5000';
     }
   };
 
-  const handleImageUpload = () => {
-    console.log('Image upload triggered');
+  const handleSubmit = async () => {
+    if (model.trim() && price.trim() && location.trim()) {
+      try {
+        const formData = new FormData();
+        formData.append('model', model);
+        formData.append('price', `PKR ${price}`);
+        formData.append('location', location);
+        formData.append('description', description);
+
+        // Append multiple images
+        images.forEach((asset, index) => {
+          formData.append('images', {
+            uri: asset.uri,
+            type: asset.type || 'image/jpeg',
+            name: asset.fileName || `image_${index + 1}.jpg`,
+          });
+        });
+
+        const response = await axios.post(
+          `${getBaseUrl()}/api/auth/post-ad`,
+          formData,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+              'Content-Type': 'multipart/form-data',
+            },
+          }
+        );
+
+        console.log('Post response:', response.data);
+        Alert.alert('Success', 'Ad posted successfully');
+        setModel('');
+        setPrice('');
+        setLocation('');
+        setDescription('');
+        setImages([]);
+        navigation.navigate('Home');
+      } catch (error) {
+        console.error('Error posting ad:', error.response?.data || error.message);
+        Alert.alert('Error', error.response?.data?.message || 'Failed to post ad');
+      }
+    } else {
+      Alert.alert('Error', 'Please fill all required fields');
+    }
+  };
+
+  const handleImageUpload = async () => {
+    const options = {
+      mediaType: 'photo',
+      quality: 0.5,
+      maxWidth: 1000,
+      maxHeight: 1000,
+      selectionLimit: 0, // 0 for unlimited selection
+    };
+
+    launchImageLibrary(options, (response) => {
+      if (response.didCancel) {
+        console.log('User cancelled image picker');
+      } else if (response.errorCode) {
+        console.log('Image Picker Error:', response.errorCode, response.errorMessage);
+        Alert.alert('Error', `Failed to pick images: ${response.errorMessage}`);
+      } else if (response.assets) {
+        setImages(response.assets); // Set array of selected images
+        console.log('Selected images:', response.assets);
+      }
+    });
   };
 
   return (
@@ -73,14 +128,14 @@ const PostScreen = () => {
               >
                 <Image
                   source={
-                    image
-                      ? image
+                    images.length > 0
+                      ? { uri: images[0].uri } // Show first image as preview
                       : require('../../assets/images/camera.png')
                   }
                   style={styles.imageUploadIcon}
                 />
                 <Text style={styles.imageUploadText}>
-                  {image ? 'Change Image' : 'Upload Car Image'}
+                  {images.length > 0 ? `Change Images (${images.length} selected)` : 'Upload Car Images'}
                 </Text>
               </TouchableOpacity>
             </View>

@@ -8,19 +8,75 @@ import {
   TouchableOpacity,
   ScrollView,
   TouchableWithoutFeedback,
+  Alert,
+  Platform,
 } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
+import axios from 'axios';
+import useAuthStore from '../../store/authStore';
 
 const LoginScreen = () => {
   const navigation = useNavigation();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const setAuth = useAuthStore((state) => state.setAuth);
 
-  const handleLogin = () => {
-    if (email.trim() && password.trim()) {
-      navigation.replace('Main');
+  // Dynamic base URL
+  const getBaseUrl = () => {
+    if (Platform.OS === 'android') {
+      return 'http://10.0.2.2:5000'; // Android emulator
+    } else {
+      return 'http://localhost:5000'; // iOS simulator
+    }
+  };
+
+  const handleLogin = async () => {
+    if (!email.trim() || !password.trim()) {
+      Alert.alert('Error', 'Please enter email and password');
+      return;
+    }
+
+    setLoading(true);
+    const baseUrl = getBaseUrl();
+
+    console.log('Request body:', { email, password });
+    console.log('API URL:', `${baseUrl}/api/auth/login`);
+
+    try {
+      const response = await axios({
+        method: 'POST',
+        url: `${baseUrl}/api/auth/login`,
+        data: { email, password },
+        timeout: 10000,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      console.log('Login response:', response.data);
+      console.log('JWT Token:', response.data.token); 
+
+      if (response.status === 200) {
+        setAuth(response.data.token);
+        console.log('JWT Token:', response.data.token);
+        Alert.alert('Success', response.data.message);
+        navigation.replace('Main');
+      }
+    } catch (error) {
+      console.error('Login error:', error);
+      let errorMessage = 'Failed to log in';
+      if (error.code === 'ERR_NETWORK' || error.message === 'Network Error') {
+        errorMessage = 'Cannot connect to server. Please check:\n1. Server is running\n2. Network connection';
+      } else if (error.response) {
+        errorMessage = error.response.data?.message || `Server error: ${error.response.status}`;
+        console.log('Server error response:', error.response.data);
+      }
+      Alert.alert('Error', errorMessage);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -37,7 +93,6 @@ const LoginScreen = () => {
   };
 
   const handleGoogleLogin = () => {
-    // Placeholder for Google login functionality (e.g., using a library like @react-native-google-signin/google-signin)
     console.log('Login with Google clicked');
   };
 
@@ -93,12 +148,12 @@ const LoginScreen = () => {
             <TouchableOpacity
               style={[
                 styles.loginButton,
-                !(email.trim() && password.trim()) && styles.loginButtonDisabled,
+                (loading || !(email.trim() && password.trim())) && styles.loginButtonDisabled,
               ]}
               onPress={handleLogin}
-              disabled={!(email.trim() && password.trim())}
+              disabled={loading || !(email.trim() && password.trim())}
             >
-              <Text style={styles.loginButtonText}>Login</Text>
+              <Text style={styles.loginButtonText}>{loading ? 'Loading...' : 'Login'}</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.googleButton} onPress={handleGoogleLogin}>
               <Image
@@ -107,7 +162,6 @@ const LoginScreen = () => {
               />
               <Text style={styles.googleButtonText}>Google</Text>
             </TouchableOpacity>
-
           </View>
 
           <View style={styles.signupContainer}>
@@ -115,9 +169,11 @@ const LoginScreen = () => {
             <TouchableWithoutFeedback onPress={handleSignUp}>
               <Text style={styles.signupLink}>Sign Up</Text>
             </TouchableWithoutFeedback>
-
           </View>
 
+          <View style={styles.debugInfo}>
+            <Text style={styles.debugText}>Server URL: {getBaseUrl()}</Text>
+          </View>
         </ScrollView>
       </SafeAreaView>
     </SafeAreaProvider>
@@ -145,15 +201,6 @@ const styles = StyleSheet.create({
     height: 200,
     resizeMode: 'contain',
     tintColor: '#ffffff',
-    
-    
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: '#0A2540',
-    marginTop: 20,
-    textAlign: 'center',
   },
   formContainer: {
     padding: 25,
@@ -206,10 +253,9 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     alignItems: 'center',
     marginTop: 10,
-
   },
   loginButtonDisabled: {
-    backgroundColor: '#142F50',
+    backgroundColor: '#999',
     shadowOpacity: 0,
     elevation: 0,
   },
@@ -260,12 +306,20 @@ const styles = StyleSheet.create({
     height: 20,
     marginRight: 10,
     resizeMode: 'contain',
-
   },
   googleButtonText: {
     color: '#333',
     fontSize: 16,
     fontWeight: '500',
+  },
+  debugInfo: {
+    marginTop: 20,
+    alignItems: 'center',
+  },
+  debugText: {
+    color: '#999',
+    fontSize: 10,
+    textAlign: 'center',
   },
 });
 

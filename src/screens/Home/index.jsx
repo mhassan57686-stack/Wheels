@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -9,53 +9,67 @@ import {
   KeyboardAvoidingView,
   Platform,
   TouchableOpacity,
+  Alert,
 } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import useAuthStore from '../../store/authStore';
 import { formatTimeAgo } from '../../utils/dateUtils';
-
+import axios from 'axios';
 
 const HomeScreen = () => {
   const [searchQuery, setSearchQuery] = useState('');
-  const [carData, setCarData] = useState([
-    {
-      id: '1',
-      model: 'Toyota Corolla 2021',
-      price: 'PKR 67 00 000',
-      location: 'Karachi',
-      description: 'Well-maintained, single owner, low mileage',
-      image: require('../../assets/images/honda.png'),
-      timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-    },
-    {
-      id: '2',
-      model: 'Hond City 2022',
-      price: 'PKR 97 000',
-      location: 'Karachi',
-      description: 'Excellent condition, recently serviced',
-      image: require('../../assets/images/honda.png'),
-      timestamp: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
-    },
-    {
-      id: '3',
-      model: 'Kia sportage 2021',
-      price: 'PKR 98.00.000',
-      location: 'Karachi',
-      description: 'Top model, fully loaded with features',
-      image: require('../../assets/images/honda.png'),
-      timestamp: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
-    },
-  ]);
+  const [carData, setCarData] = useState([]); // Ensure empty array by default
   const [favorites, setFavorites] = useState([]);
   const navigation = useNavigation();
+  const { token } = useAuthStore();
 
-  const filteredCars = carData.filter((car) =>
-    car.model.toLowerCase().includes(searchQuery.toLowerCase())
+  const getBaseUrl = () => {
+    if (Platform.OS === 'ios') {
+      return 'http://localhost:5000'; // Replace with your machine's IP for physical iOS, e.g., 'http://192.168.1.100:5000'
+    } else {
+      return 'http://10.0.2.2:5000'; // Android emulator
+    }
+  };
+
+  const fetchCars = async () => {
+    if (!token) {
+      Alert.alert('Error', 'Please log in to view ads');
+      navigation.navigate('LoginScreen');
+      return;
+    }
+
+    try {
+      const response = await axios.get(`${getBaseUrl()}/api/auth/ads`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      console.log('Fetched ads response:', response.data); // Debug response
+      if (Array.isArray(response.data.ads)) {
+        setCarData(response.data.ads);
+      } else {
+        console.warn('Unexpected response format:', response.data);
+        setCarData([]); // Fallback to empty array
+      }
+    } catch (error) {
+      console.error('Error fetching ads:', error.response?.data || error.message);
+      Alert.alert('Error', 'Failed to fetch ads');
+      setCarData([]); // Ensure carData is reset on error
+    }
+  };
+
+  useEffect(() => {
+    fetchCars();
+  }, [token]);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      fetchCars();
+    }, [])
   );
 
-  const addNewCar = (newCar) => {
-    setCarData((prev) => [...prev, newCar]);
-  };
+  const filteredCars = carData.filter((car) =>
+    car?.model?.toLowerCase().includes(searchQuery.toLowerCase()) || '' // Safe check
+  );
 
   const toggleFavorite = (carId) => {
     setFavorites((prev) =>
@@ -66,32 +80,48 @@ const HomeScreen = () => {
     console.log('Favorites:', favorites.includes(carId) ? 'Removed' : 'Added', carId);
   };
 
-  const renderCarItem = ({ item }) => (
-    <TouchableOpacity
-      style={styles.card}
-      onPress={() => navigation.navigate('CarDetailsScreen', { car: item })} 
-    >
-      <Image source={item.image} style={styles.carImage} />
-      <View style={styles.info}>
-        <Text style={styles.model}>{item.model}</Text>
-        <Text style={styles.price}>{item.price}</Text>
-        <Text style={styles.location}>{item.location}</Text>
-        <Text style={styles.timestamp}>{formatTimeAgo(item.timestamp)}</Text>
-      </View>
+  const renderCarItem = ({ item }) => {
+    // Ensure all fields are defined, fallback to empty strings
+    const model = item?.model || 'Unknown Model';
+    const price = item?.price || 'PKR N/A';
+    const location = item?.location || 'Unknown Location';
+    const timestamp = item?.timestamp || new Date().toISOString();
+
+    return (
       <TouchableOpacity
-        style={styles.favoriteButton}
-        onPress={() => toggleFavorite(item.id)}
+        style={styles.card}
+        onPress={() => navigation.navigate('CarDetailsScreen', { car: item })}
       >
         <Image
-          source={require('../../assets/images/heart.png')}
-          style={[
-            styles.favoriteIcon,
-            favorites.includes(item.id) && styles.favoriteIconActive,
-          ]}
+          source={
+            item?.images && item.images.length > 0
+              ? { uri: `${getBaseUrl()}/${item.images[0]}` }
+              : require('../../assets/images/honda.png')
+          }
+          style={styles.carImage}
+          onError={(error) => console.log('Image load error for item:', item.id, error.nativeEvent.error)}
         />
+        <View style={styles.info}>
+          <Text style={styles.model}>{model}</Text>
+          <Text style={styles.price}>{price}</Text>
+          <Text style={styles.location}>{location}</Text>
+          <Text style={styles.timestamp}>{formatTimeAgo(timestamp)}</Text>
+        </View>
+        <TouchableOpacity
+          style={styles.favoriteButton}
+          onPress={() => toggleFavorite(item.id || item._id)} // Handle both id and _id
+        >
+          <Image
+            source={require('../../assets/images/heart.png')}
+            style={[
+              styles.favoriteIcon,
+              favorites.includes(item.id || item._id) && styles.favoriteIconActive,
+            ]}
+          />
+        </TouchableOpacity>
       </TouchableOpacity>
-    </TouchableOpacity>
-  );
+    );
+  };
 
   return (
     <SafeAreaProvider>
@@ -157,7 +187,7 @@ const HomeScreen = () => {
             <FlatList
               data={filteredCars}
               renderItem={renderCarItem}
-              keyExtractor={(item) => item.id}
+              keyExtractor={(item) => item._id || item.id || Math.random().toString()} // Fallback key
               contentContainerStyle={styles.list}
               ListEmptyComponent={<Text style={styles.emptyText}>No cars found</Text>}
               keyboardShouldPersistTaps="handled"
