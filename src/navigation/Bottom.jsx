@@ -1,11 +1,10 @@
-// Updated Bottom.jsx
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { View, Image, StyleSheet, TouchableOpacity } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import HomeScreen from '../screens/Home/index.jsx';
 import Post from '../screens/Post/index.jsx';
-import ChatListScreen from '../screens/Chat/ChatListScreen.jsx'; // Updated import to ChatListScreen
+import ChatListScreen from '../screens/Chat/ChatListScreen.jsx';
 
 const Tab = createBottomTabNavigator();
 
@@ -35,12 +34,12 @@ export default function BottomTabNavigator() {
           if (route.name === 'Home') {
             iconSource = require('../assets/images/home.png');
           } else if (route.name === 'Post') {
-            return null; 
+            return null; // No icon for Post, handled by CustomPlusButton
           } else if (route.name === 'Chat') {
             iconSource = require('../assets/images/chat.png');
           }
 
-          return (
+          return iconSource ? (
             <Image
               source={iconSource}
               style={{
@@ -51,7 +50,7 @@ export default function BottomTabNavigator() {
               }}
               resizeMode="contain"
             />
-          );
+          ) : null;
         },
         tabBarActiveTintColor: '#FFFFFF',
         tabBarInactiveTintColor: '#8B9AA3',
@@ -69,15 +68,11 @@ export default function BottomTabNavigator() {
         component={Post}
         options={{
           tabBarButton: (props) => <CustomPlusButton {...props} />,
-          tabBarStyle: { display: 'none' },
         }}
       />
       <Tab.Screen
         name="Chat"
-        component={ChatListScreen} // Updated to ChatListScreen
-        options={{
-          tabBarStyle: { display: 'none' }, // Optional: Hide tab bar if not needed, but keep as is if you want it visible
-        }}
+        component={ChatListScreen}
       />
     </Tab.Navigator>
   );
@@ -120,7 +115,7 @@ const styles = StyleSheet.create({
     elevation: 2,
     borderWidth: 8,
     borderColor: '#e2f3f8ff',
-    marginBottom:18
+    marginBottom: 18,
   },
   plusHorizontal: {
     position: 'absolute',

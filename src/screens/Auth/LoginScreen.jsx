@@ -60,7 +60,7 @@ const LoginScreen = () => {
       console.log('JWT Token:', response.data.token); 
 
       if (response.status === 200) {
-        setAuth(response.data.token);
+        setAuth(response.data.token, response.data.user);
         console.log('JWT Token:', response.data.token);
         Alert.alert('Success', response.data.message);
         navigation.replace('Main');

@@ -59,7 +59,6 @@ const Signup = () => {
       console.log('JWT Token:', response.data.token); // Log JWT token
 
       if (response.status === 201) {
-        setAuth(response.data.token); // Store token in Zustand
         Alert.alert('Success', response.data.message);
         navigation.navigate('LoginScreen');
       }

@@ -1,48 +1,40 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, FlatList, TouchableOpacity, Image, StyleSheet, ActivityIndicator } from 'react-native';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, RefreshControl, Image, Platform, ActivityIndicator } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
+import { useNavigation, useFocusEffect, useIsFocused } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useNavigation, useIsFocused } from '@react-navigation/native';
+import { io } from 'socket.io-client';
+import useAuthStore from '../../store/authStore';
 
 const ChatListScreen = () => {
   const [chats, setChats] = useState([]);
   const [loading, setLoading] = useState(true);
   const navigation = useNavigation();
   const isFocused = useIsFocused();
-  const baseUrl = 'http://10.0.2.2:5000';
-  const ws = useRef(null);
-  const userId = useRef(null);
+  const socket = useRef(null);
+
+  const { isAuthenticated, token, user } = useAuthStore();
+  const userId = user?._id;
+
+  const baseUrl = Platform.OS === 'ios' ? 'http://localhost:5000' : 'http://10.0.2.2:5000';
+
+  useEffect(() => {
+    if (isFocused && !isAuthenticated) {
+      navigation.navigate('LoginScreen');
+    }
+  }, [isFocused, isAuthenticated, navigation]);
 
   useEffect(() => {
     const initializeChats = async () => {
       try {
-        const token = await AsyncStorage.getItem('token');
         if (!token) {
-          navigation.reset({
-            index: 0,
-            routes: [{ name: 'Login' }],
-          });
           return;
         }
 
-        // Get current user ID
-        const userData = await AsyncStorage.getItem('user');
-        if (userData) {
-          const user = JSON.parse(userData);
-          userId.current = user._id;
+        if (isFocused) {
+          await refreshChats();
         }
-
-        // Fetch chats
-        const res = await fetch(`${baseUrl}/api/messages/conversations`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-
-        if (!res.ok) throw new Error('Failed to load chats');
-        const data = await res.json();
-        setChats(data);
-
-        // Initialize WebSocket connection
-        initializeWebSocket(token);
+        initializeSocket(token);
 
       } catch (err) {
         console.error('Chat load error:', err);
@@ -51,97 +43,73 @@ const ChatListScreen = () => {
       }
     };
 
-    initializeChats();
-
-    // Cleanup WebSocket on unmount
-    return () => {
-      if (ws.current) {
-        ws.current.close();
-      }
-    };
-  }, [navigation]);
-
-  // Refresh chats when screen comes into focus
-  useEffect(() => {
-    if (isFocused) {
-      refreshChats();
+    if (isFocused && token) {
+      initializeChats();
     }
-  }, [isFocused]);
 
-  const initializeWebSocket = (token) => {
-    // Replace with your WebSocket URL (assuming you're using the same base URL)
-    const wsUrl = baseUrl.replace('http', 'ws') + '/ws';
-    ws.current = new WebSocket(wsUrl);
-
-    ws.current.onopen = () => {
-      console.log('WebSocket connected');
-      // Send authentication token
-      ws.current.send(JSON.stringify({ type: 'auth', token }));
-    };
-
-    ws.current.onmessage = (event) => {
-      try {
-        const message = JSON.parse(event.data);
-        handleNewMessage(message);
-      } catch (error) {
-        console.error('Error parsing WebSocket message:', error);
+    return () => {
+      if (socket.current) {
+        socket.current.disconnect();
       }
     };
+  }, [isFocused, token]);
 
-    ws.current.onerror = (error) => {
-      console.error('WebSocket error:', error);
-    };
+  const initializeSocket = (token) => {
+    if (socket.current) {
+      socket.current.off('receive_message'); // Remove previous listeners
+      socket.current.off('connect');
+      socket.current.off('connect_error');
+      socket.current.off('disconnect');
+      socket.current.disconnect();
+    }
 
-    ws.current.onclose = () => {
-      console.log('WebSocket disconnected');
-    };
+    socket.current = io(baseUrl, {
+      transports: ['websocket'],
+      auth: { token },
+    });
+
+    socket.current.on('connect', () => {
+      console.log(`Socket connected in ChatListScreen with ID: ${socket.current.id}`);
+    });
+
+    socket.current.on('receive_message', (newMessage) => {
+      console.log('New message received in ChatListScreen:', newMessage);
+      handleNewMessage(newMessage);
+    });
+
+    socket.current.on('connect_error', (error) => {
+      console.error('Socket connection error in ChatListScreen:', error);
+    });
+
+    socket.current.on('disconnect', () => {
+      console.log('Socket disconnected in ChatListScreen');
+    });
   };
 
-  const handleNewMessage = (newMessage) => {
-    console.log('New message received:', newMessage);
-    
-    setChats(prevChats => {
-      // Check if this message belongs to an existing conversation
-      const existingChatIndex = prevChats.findIndex(chat => 
-        chat._id === newMessage.conversationId || 
-        (chat.carId === newMessage.carId && 
-         (chat.sellerId === newMessage.senderId || chat.buyerId === newMessage.senderId))
-      );
-
-      if (existingChatIndex !== -1) {
-        // Update existing chat
-        const updatedChats = [...prevChats];
-        const updatedChat = {
-          ...updatedChats[existingChatIndex],
-          lastMessage: newMessage.text,
-          timestamp: newMessage.timestamp,
-          unreadCount: (updatedChats[existingChatIndex].unreadCount || 0) + 
-                      (newMessage.receiverId === userId.current ? 1 : 0)
-        };
-        
-        // Move updated chat to top
-        updatedChats.splice(existingChatIndex, 1);
-        return [updatedChat, ...updatedChats];
-      } else {
-        // This is a new conversation, we need to fetch the conversation details
-        refreshChats();
-        return prevChats;
+  const handleNewMessage = async (newMessage) => {
+    try {
+      // Check if the message is relevant to the current user
+      if (newMessage.senderId === userId || newMessage.receiverId === userId) {
+        await refreshChats(); // Fetch the latest chat list
       }
-    });
+    } catch (error) {
+      console.error('Error handling new message in ChatListScreen:', error);
+    }
   };
 
   const refreshChats = async () => {
     try {
-      const token = await AsyncStorage.getItem('token');
       if (!token) return;
 
-      const res = await fetch(`${baseUrl}/api/messages/conversations`, {
+      const response = await fetch(`${baseUrl}/api/auth/conversations`, {
         headers: { Authorization: `Bearer ${token}` },
       });
 
-      if (res.ok) {
-        const data = await res.json();
-        setChats(data);
+      if (response.ok) {
+        const data = await response.json();
+        setChats(data?.chats || []);
+      } else {
+        console.error('Failed to fetch chats:', response.status);
       }
     } catch (error) {
       console.error('Error refreshing chats:', error);
@@ -165,9 +133,10 @@ const ChatListScreen = () => {
       style={styles.item}
       onPress={() =>
         navigation.navigate('ChatScreen', {
-          conversationId: item._id,
-          sellerName: item.seller?.name || 'Seller',
-          carModel: item.car?.model || 'Car',
+          carId: item.carId,
+          carModel: item.carModel,
+          otherUserId: item.otherUserId,
+          otherUserName: item.otherUserName,
         })
       }
     >
@@ -177,10 +146,10 @@ const ChatListScreen = () => {
       />
       <View style={styles.chatInfo}>
         <Text style={styles.name}>
-          {item.seller?.name || item.buyer?.name || 'Unknown User'}
+          {item.otherUserName || 'Unknown User'}
         </Text>
         <Text style={styles.carModel}>
-          {item.car?.model || 'Unknown Car'}
+          {item.carModel || 'Unknown Car'}
         </Text>
         <Text style={styles.lastMessage} numberOfLines={1}>
           {item.lastMessage || 'No messages yet'}
@@ -188,7 +157,7 @@ const ChatListScreen = () => {
       </View>
       <View style={styles.rightSection}>
         <Text style={styles.time}>
-          {item.timestamp ? formatTime(item.timestamp) : ''}
+          {item.lastMessageTime ? formatTime(item.lastMessageTime) : ''}
         </Text>
         {item.unreadCount > 0 && (
           <View style={styles.unreadBadge}>
@@ -214,7 +183,7 @@ const ChatListScreen = () => {
           <FlatList
             data={chats}
             renderItem={renderItem}
-            keyExtractor={item => item._id}
+            keyExtractor={(item, index) => item.id || `${index}`}
             showsVerticalScrollIndicator={false}
           />
         )}

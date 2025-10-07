@@ -31,7 +31,7 @@ const ChatScreen = () => {
   const flatListRef = useRef(null);
 
   // Aapke authStore se data le rahe hain
-  const { token, isAuthenticated } = useAuthStore();
+  const { token, isAuthenticated, user } = useAuthStore();
 
   const getBaseUrl = () => {
     return Platform.OS === 'ios' 
@@ -96,17 +96,9 @@ const ChatScreen = () => {
     }
   };
 
-  // Get current user ID from token
-  const getUserIdFromToken = () => {
-    if (!token) return null;
-    try {
-      // JWT token decode karke user ID nikalte hain
-      const payload = JSON.parse(atob(token.split('.')[1]));
-      return payload.userId;
-    } catch (error) {
-      console.error('Error decoding token:', error);
-      return null;
-    }
+  // Get current user ID from store
+  const getUserIdFromStore = () => {
+    return user?._id || null;
   };
 
   useEffect(() => {
@@ -132,8 +124,8 @@ const ChatScreen = () => {
           return;
         }
 
-        // Token se user ID nikalte hain
-        const userId = getUserIdFromToken();
+        // Store se user ID nikalte hain
+        const userId = getUserIdFromStore();
         if (!userId) {
           throw new Error('User ID not found in token');
         }
@@ -163,7 +155,12 @@ const ChatScreen = () => {
 
         newSocket.on('receive_message', (message) => {
           console.log('New message received:', message);
-          setMessages(prev => [...prev, message]);
+          setMessages((previousMessages) => {
+            const incomingId = String(message._id || message.id || '');
+            const exists = previousMessages.some((m) => String(m._id || m.id || '') === incomingId && incomingId !== '');
+            if (exists) return previousMessages;
+            return [...previousMessages, message];
+          });
         });
 
         newSocket.on('message_error', (error) => {
@@ -177,7 +174,7 @@ const ChatScreen = () => {
 
         newSocket.on('unauthorized', () => {
           Alert.alert('Session Expired', 'Please login again');
-          navigation.navigate('Login');
+          navigation.navigate('LoginScreen');
         });
 
         setSocket(newSocket);
@@ -235,7 +232,7 @@ const ChatScreen = () => {
   };
 
   const renderMessageItem = ({ item }) => {
-    const isCurrentUser = item.senderId === currentUserId;
+    const isCurrentUser = String(item.senderId) === String(currentUserId);
     
     return (
       <View
@@ -329,12 +326,13 @@ const ChatScreen = () => {
   ref={flatListRef}
   data={messages}
   renderItem={renderMessageItem}
-  keyExtractor={(item) => {
-    // Unique key banane ke liye multiple fields combine karte hain
-    if (item._id) return item._id;
-    if (item.id) return item.id;
-    // Agar koi ID nahi hai toh timestamp aur text combine karte hain
-    return `msg_${item.timestamp}_${item.text.substring(0, 10)}_${Math.random().toString(36).substr(2, 9)}`;
+  keyExtractor={(item, index) => {
+    const primary = String(item._id || item.id || '');
+    if (primary) return primary;
+    const ts = new Date(item.timestamp || 0).getTime();
+    const sender = String(item.senderId || '');
+    const textHead = (item.text || '').substring(0, 12);
+    return `msg_${ts}_${sender}_${textHead}_${index}`;
   }}
   contentContainerStyle={styles.messageList}
   showsVerticalScrollIndicator={false}
