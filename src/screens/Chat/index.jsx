@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -9,70 +9,279 @@ import {
   TouchableOpacity,
   KeyboardAvoidingView,
   Platform,
+  Alert,
+  ActivityIndicator
 } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
-
-const initialMessages = [
-  {
-    id: '1',
-    text: 'Hi, is the Toyota Corolla 2021 still available?',
-    sender: 'other',
-    time: '10:30 AM',
-  },
-  {
-    id: '2',
-    text: 'Yes, it’s still available. Are you interested in a test drive?',
-    sender: 'user',
-    time: '10:32 AM',
-  },
-  {
-    id: '3',
-    text: 'Great! Can we schedule it for tomorrow?',
-    sender: 'other',
-    time: '10:35 AM',
-  },
-];
+import { useNavigation, useRoute } from '@react-navigation/native';
+import io from 'socket.io-client';
+import axios from 'axios';
+import useAuthStore from '../../store/authStore'; // Your authStore
 
 const ChatScreen = () => {
   const navigation = useNavigation();
-  const [messages, setMessages] = useState(initialMessages);
+  const route = useRoute();
+  const { carId, carModel, otherUserId, otherUserName } = route.params;
+  
+  const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
+  const [socket, setSocket] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [currentUserId, setCurrentUserId] = useState(null);
+  const flatListRef = useRef(null);
 
-  const sendMessage = () => {
-    if (newMessage.trim()) {
-      const newMsg = {
-        id: (messages.length + 1).toString(),
-        text: newMessage,
-        sender: 'user',
-        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      };
-      setMessages([...messages, newMsg]);
-      setNewMessage('');
-      // Simulate a reply from the other user after a short delay
-      setTimeout(() => {
-        const replyMsg = {
-          id: (messages.length + 2).toString(),
-          text: 'Thanks for your message! I’ll get back to you soon.',
-          sender: 'other',
-          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        };
-        setMessages((prevMessages) => [...prevMessages, replyMsg]);
-      }, 1000);
+  // Aapke authStore se data le rahe hain
+  const { token, isAuthenticated } = useAuthStore();
+
+  const getBaseUrl = () => {
+    return Platform.OS === 'ios' 
+      ? 'http://localhost:5000' 
+      : 'http://10.0.2.2:5000';
+  };
+
+  // Fetch messages function
+  const fetchMessages = async () => {
+    try {
+      if (!token) {
+        Alert.alert(
+          'Login Required',
+          'Please login to continue chatting',
+          [
+            {
+              text: 'Cancel',
+              onPress: () => navigation.goBack(),
+              style: 'cancel'
+            },
+            {
+              text: 'Login',
+              onPress: () => navigation.navigate('Login')
+            }
+          ]
+        );
+        return;
+      }
+
+      console.log('Fetching messages with token from authStore');
+      
+      const response = await axios.get(
+        `${getBaseUrl()}/api/auth/chat-messages/${carId}/${otherUserId}`,
+        { 
+          headers: { 
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          } 
+        }
+      );
+      
+      console.log('Messages fetched successfully:', response.data.messages.length);
+      setMessages(response.data.messages);
+      
+    } catch (error) {
+      console.error('Error fetching messages:', error.response?.data || error.message);
+      
+      if (error.response?.status === 401) {
+        Alert.alert(
+          'Session Expired',
+          'Your session has expired. Please login again.',
+          [
+            {
+              text: 'OK',
+              onPress: () => navigation.navigate('Login')
+            }
+          ]
+        );
+      } else {
+        Alert.alert('Error', 'Failed to load messages. Please try again.');
+      }
     }
   };
 
-  const renderMessageItem = ({ item }) => (
-    <View
-      style={[
-        styles.messageContainer,
-        item.sender === 'user' ? styles.userMessage : styles.otherMessage,
-      ]}
-    >
-      <Text style={styles.messageText}>{item.text}</Text>
-      <Text style={styles.messageTime}>{item.time}</Text>
-    </View>
-  );
+  // Get current user ID from token
+  const getUserIdFromToken = () => {
+    if (!token) return null;
+    try {
+      // JWT token decode karke user ID nikalte hain
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      return payload.userId;
+    } catch (error) {
+      console.error('Error decoding token:', error);
+      return null;
+    }
+  };
+
+  useEffect(() => {
+    const initializeChat = async () => {
+      try {
+        // Auth store se check karte hain
+        if (!isAuthenticated || !token) {
+          Alert.alert(
+            'Login Required',
+            'Please login to start chatting',
+            [
+              {
+                text: 'Cancel',
+                onPress: () => navigation.goBack(),
+                style: 'cancel'
+              },
+              {
+                text: 'Login',
+                onPress: () => navigation.navigate('Login')
+              }
+            ]
+          );
+          return;
+        }
+
+        // Token se user ID nikalte hain
+        const userId = getUserIdFromToken();
+        if (!userId) {
+          throw new Error('User ID not found in token');
+        }
+        
+        setCurrentUserId(userId);
+        
+        // Fetch existing messages
+        await fetchMessages();
+        
+        // Initialize socket connection
+        const newSocket = io(getBaseUrl(), {
+          transports: ['websocket'],
+          auth: {
+            token: token
+          }
+        });
+
+        newSocket.on('connect', () => {
+          console.log('Connected to server');
+          // Join the chat room
+          newSocket.emit('join_chat', { 
+            carId, 
+            userId: userId,
+            otherUserId 
+          });
+        });
+
+        newSocket.on('receive_message', (message) => {
+          console.log('New message received:', message);
+          setMessages(prev => [...prev, message]);
+        });
+
+        newSocket.on('message_error', (error) => {
+          Alert.alert('Error', error.error);
+        });
+
+        newSocket.on('connect_error', (error) => {
+          console.error('Socket connection error:', error);
+          Alert.alert('Connection Error', 'Failed to connect to chat server');
+        });
+
+        newSocket.on('unauthorized', () => {
+          Alert.alert('Session Expired', 'Please login again');
+          navigation.navigate('Login');
+        });
+
+        setSocket(newSocket);
+
+      } catch (error) {
+        console.error('Error initializing chat:', error);
+        Alert.alert('Error', error.message || 'Failed to initialize chat');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    initializeChat();
+
+    return () => {
+      if (socket) {
+        socket.disconnect();
+      }
+    };
+  }, [carId, otherUserId, isAuthenticated, token]);
+
+  useEffect(() => {
+    if (flatListRef.current && messages.length > 0) {
+      setTimeout(() => {
+        flatListRef.current.scrollToEnd({ animated: true });
+      }, 100);
+    }
+  }, [messages]);
+
+  const sendMessage = async () => {
+    if (!newMessage.trim()) return;
+    
+    if (!socket || !isAuthenticated || !currentUserId) {
+      Alert.alert('Error', 'Please login to send messages');
+      return;
+    }
+
+    try {
+      const messageData = {
+        carId,
+        senderId: currentUserId,
+        receiverId: otherUserId,
+        text: newMessage.trim(),
+        timestamp: new Date()
+      };
+
+      console.log('Sending message:', messageData);
+      socket.emit('send_message', messageData);
+      setNewMessage('');
+      
+    } catch (error) {
+      console.error('Error sending message:', error);
+      Alert.alert('Error', 'Failed to send message');
+    }
+  };
+
+  const renderMessageItem = ({ item }) => {
+    const isCurrentUser = item.senderId === currentUserId;
+    
+    return (
+      <View
+        style={[
+          styles.messageContainer,
+          isCurrentUser ? styles.userMessage : styles.otherMessage,
+        ]}
+      >
+        <Text style={styles.messageText}>{item.text}</Text>
+        <Text style={styles.messageTime}>
+          {new Date(item.timestamp).toLocaleTimeString([], { 
+            hour: '2-digit', 
+            minute: '2-digit' 
+          })}
+        </Text>
+      </View>
+    );
+  };
+
+  if (loading) {
+    return (
+      <SafeAreaProvider>
+        <SafeAreaView style={styles.safeArea}>
+          <View style={styles.header}>
+            <TouchableOpacity
+              onPress={() => navigation.goBack()}
+              style={styles.headerIcon}
+            >
+              <Image
+                source={require('../../assets/images/back.png')}
+                style={styles.iconImage}
+              />
+            </TouchableOpacity>
+            <View style={styles.headerUser}>
+              <Text style={styles.headerTitle}>{carModel}</Text>
+            </View>
+            <View style={styles.headerIcon} />
+          </View>
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#00D9E1" />
+            <Text style={styles.loadingText}>Loading chat...</Text>
+          </View>
+        </SafeAreaView>
+      </SafeAreaProvider>
+    );
+  }
 
   return (
     <SafeAreaProvider>
@@ -92,7 +301,10 @@ const ChatScreen = () => {
               source={require('../../assets/images/user.png')}
               style={styles.userIcon}
             />
-            <Text style={styles.headerTitle}>Buyer - Toyota Corolla</Text>
+            <View>
+              <Text style={styles.headerTitle}>{carModel}</Text>
+              <Text style={styles.subTitle}>Chat with {otherUserName}</Text>
+            </View>
           </View>
           <View style={styles.headerIcon} />
         </View>
@@ -103,14 +315,31 @@ const ChatScreen = () => {
           keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
         >
           <View style={styles.container}>
-            <FlatList
-              data={messages}
-              renderItem={renderMessageItem}
-              keyExtractor={(item) => item.id}
-              contentContainerStyle={styles.messageList}
-              showsVerticalScrollIndicator={false}
-             
-            />
+            {messages.length === 0 ? (
+              <View style={styles.emptyChatContainer}>
+                <Text style={styles.emptyChatText}>No messages yet</Text>
+                <Text style={styles.emptyChatSubText}>
+                  Start the conversation by sending a message
+                </Text>
+              </View>
+            ) : (
+              // In your ChatScreen.jsx, update the FlatList keyExtractor:
+
+<FlatList
+  ref={flatListRef}
+  data={messages}
+  renderItem={renderMessageItem}
+  keyExtractor={(item) => {
+    // Unique key banane ke liye multiple fields combine karte hain
+    if (item._id) return item._id;
+    if (item.id) return item.id;
+    // Agar koi ID nahi hai toh timestamp aur text combine karte hain
+    return `msg_${item.timestamp}_${item.text.substring(0, 10)}_${Math.random().toString(36).substr(2, 9)}`;
+  }}
+  contentContainerStyle={styles.messageList}
+  showsVerticalScrollIndicator={false}
+/>
+            )}
 
             <View style={styles.inputContainer}>
               <TextInput
@@ -124,13 +353,13 @@ const ChatScreen = () => {
               <TouchableOpacity
                 style={styles.sendButton}
                 onPress={sendMessage}
-                disabled={!newMessage.trim()}
+                disabled={!newMessage.trim() || !isAuthenticated}
               >
                 <Image
                   source={require('../../assets/images/send.png')}
                   style={[
                     styles.sendIcon,
-                    !newMessage.trim() && styles.sendIconDisabled,
+                    (!newMessage.trim() || !isAuthenticated) && styles.sendIconDisabled,
                   ]}
                 />
               </TouchableOpacity>
@@ -170,6 +399,8 @@ const styles = StyleSheet.create({
   headerUser: {
     flexDirection: 'row',
     alignItems: 'center',
+    flex: 1,
+    justifyContent: 'center',
   },
   userIcon: {
     width: 28,
@@ -182,6 +413,39 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
     color: '#FFFFFF',
+    textAlign: 'center',
+  },
+  subTitle: {
+    fontSize: 12,
+    color: '#CCCCCC',
+    textAlign: 'center',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#E8F4F8',
+  },
+  loadingText: {
+    marginTop: 10,
+    color: '#666',
+    fontSize: 16,
+  },
+  emptyChatContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingBottom: 100,
+  },
+  emptyChatText: {
+    fontSize: 18,
+    color: '#666',
+    marginBottom: 8,
+  },
+  emptyChatSubText: {
+    fontSize: 14,
+    color: '#999',
+    textAlign: 'center',
   },
   keyboardView: {
     flex: 1,
@@ -202,7 +466,6 @@ const styles = StyleSheet.create({
     padding: 12,
     borderRadius: 12,
     marginVertical: 5,
-    marginHorizontal: 10,
   },
   userMessage: {
     backgroundColor: '#c1f9fcff',
@@ -236,11 +499,6 @@ const styles = StyleSheet.create({
     marginTop: 10,
     borderWidth: 1,
     borderColor: '#D0E8F2',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
   },
   messageInput: {
     flex: 1,

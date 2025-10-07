@@ -1,10 +1,11 @@
+// Updated Bottom.jsx
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { View, Image, StyleSheet, TouchableOpacity } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import HomeScreen from '../screens/Home/index.jsx';
 import Post from '../screens/Post/index.jsx';
-import Chat from '../screens/Chat/index.jsx';
+import ChatListScreen from '../screens/Chat/ChatListScreen.jsx'; // Updated import to ChatListScreen
 
 const Tab = createBottomTabNavigator();
 
@@ -73,9 +74,9 @@ export default function BottomTabNavigator() {
       />
       <Tab.Screen
         name="Chat"
-        component={Chat}
+        component={ChatListScreen} // Updated to ChatListScreen
         options={{
-          tabBarStyle: { display: 'none' },
+          tabBarStyle: { display: 'none' }, // Optional: Hide tab bar if not needed, but keep as is if you want it visible
         }}
       />
     </Tab.Navigator>

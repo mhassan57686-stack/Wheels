@@ -10,6 +10,7 @@ import LoginScreen from '../screens/Auth/LoginScreen';
 import ForgotPassword from '../screens/Auth/ForgotPassward';
 import OTP from '../screens/Auth/OTP';
 import Signup from '../screens/Auth/Signup';
+import ChatListScreen from '../screens/Chat/ChatListScreen.jsx';
 const Stack = createStackNavigator();
 
 const MyStack = () => {
@@ -32,6 +33,8 @@ const MyStack = () => {
      <Stack.Screen name="Profile" component={Profile} />
      <Stack.Screen name="Notification" component={Notification} />
  <Stack.Screen name="ChatScreen" component={ChatScreen} />
+ <Stack.Screen name="ChatListScreen" component={ChatListScreen} />
+
   <Stack.Screen name="CarDetailsScreen" component={CarDetailsScreen} />
 
     </Stack.Navigator>

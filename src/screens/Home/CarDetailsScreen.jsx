@@ -19,17 +19,16 @@ const CarDetailsScreen = () => {
   const navigation = useNavigation();
   const route = useRoute();
   const { car } = route.params;
-  const windowWidth = Dimensions.get('window').width; // Get screen width dynamically
+  const windowWidth = Dimensions.get('window').width;
 
   const getBaseUrl = () => {
     if (Platform.OS === 'ios') {
-      return 'http://localhost:5000'; // Replace with your machine's IP for physical iOS, e.g., 'http://192.168.1.100:5000'
+      return 'http://localhost:5000';
     } else {
-      return 'http://10.0.2.2:5000'; // Android emulator
+      return 'http://10.0.2.2:5000';
     }
   };
 
-  // Debug function to get image URL
   const getImageUrl = (imagePath) => {
     console.log('Image path from backend:', imagePath);
     const fullUrl = `${getBaseUrl()}/${imagePath.replace(/^uploads\/cars\//, 'uploads/cars/')}`;
@@ -37,17 +36,24 @@ const CarDetailsScreen = () => {
     return { uri: fullUrl };
   };
 
-  // Check if image loads, log errors
   const handleImageError = (error) => {
     console.log('Image load error:', error.nativeEvent.error);
     Alert.alert('Error', 'Failed to load image. Check console logs.');
   };
 
-  // Render each image in the carousel
+  const handleChatPress = () => {
+  navigation.navigate('ChatScreen', {
+    carId: car._id,
+    carModel: car.model,
+    otherUserId: car.userId, // The seller's user ID
+    otherUserName: 'Seller' // You might want to fetch seller's name
+  });
+};
+
   const renderImageItem = ({ item }) => (
     <Image
       source={getImageUrl(item)}
-      style={[styles.carouselImage, { width: windowWidth - 40 }]} // Full width minus padding
+      style={[styles.carouselImage, { width: windowWidth - 40 }]}
       onError={handleImageError}
     />
   );
@@ -75,13 +81,13 @@ const CarDetailsScreen = () => {
               <FlatList
                 data={car.images}
                 renderItem={renderImageItem}
-                keyExtractor={(item, index) => index.toString()} // Use index as key
+                keyExtractor={(item, index) => index.toString()}
                 horizontal
                 showsHorizontalScrollIndicator={false}
-                pagingEnabled // Snap to full image width
+                pagingEnabled
                 style={styles.carousel}
                 getItemLayout={(data, index) => ({
-                  length: windowWidth - 40, // Width of each item
+                  length: windowWidth - 40,
                   offset: (windowWidth - 40) * index,
                   index,
                 })}
@@ -89,7 +95,7 @@ const CarDetailsScreen = () => {
             ) : (
               <Image
                 source={require('../../assets/images/honda.png')}
-                style={[styles.carImage, { width: windowWidth - 40 }]} // Full width minus padding
+                style={[styles.carImage, { width: windowWidth - 40 }]}
                 onError={handleImageError}
               />
             )}
@@ -104,6 +110,11 @@ const CarDetailsScreen = () => {
             <Text style={styles.description}>
               {car.description || 'No description provided'}
             </Text>
+            
+            {/* Chat Button */}
+          <TouchableOpacity style={styles.chatButton} onPress={handleChatPress}>
+  <Text style={styles.chatButtonText}>Chat with Seller</Text>
+</TouchableOpacity>
           </View>
         </ScrollView>
       </SafeAreaView>
@@ -163,12 +174,12 @@ const styles = StyleSheet.create({
     flexGrow: 0,
   },
   carouselImage: {
-    height: 300, // Increased height for full-size feel
+    height: 300,
     resizeMode: 'contain',
     borderRadius: 8,
   },
   carImage: {
-    height: 300, // Increased height for full-size feel
+    height: 300,
     resizeMode: 'contain',
     borderRadius: 8,
   },
@@ -215,6 +226,19 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: '#333',
     lineHeight: 22,
+    marginBottom: 20,
+  },
+  chatButton: {
+    backgroundColor: '#00D9E1',
+    paddingVertical: 15,
+    borderRadius: 12,
+    alignItems: 'center',
+    marginTop: 10,
+  },
+  chatButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: 'bold',
   },
 });
 
