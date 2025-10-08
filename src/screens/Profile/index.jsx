@@ -359,7 +359,7 @@ const Profile = () => {
           </View>
 
           <View style={styles.optionsContainer}>
-            <TouchableOpacity style={styles.optionItem}>
+            <TouchableOpacity onPress={()=>navigation.navigate("MyAds")} style={styles.optionItem}>
               <View style={styles.optionLeft}>
                 <Image source={require('../../assets/images/car.png')} style={styles.optionIcon} />
                 <Text style={styles.optionText}>My Ads</Text>
@@ -367,7 +367,7 @@ const Profile = () => {
               <Image source={require('../../assets/images/back.png')} style={styles.arrowIcon} />
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.optionItem}>
+            <TouchableOpacity onPress={()=>navigation.navigate("Favorites")} style={styles.optionItem}>
               <View style={styles.optionLeft}>
                 <Image source={require('../../assets/images/heart.png')} style={styles.optionIcon} />
                 <Text style={styles.optionText}>Favorites</Text>

@@ -2,12 +2,9 @@ import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
-  TextInput,
-  Image,
   FlatList,
   StyleSheet,
-  KeyboardAvoidingView,
-  Platform,
+  Image,
   TouchableOpacity,
   Alert,
 } from 'react-native';
@@ -17,32 +14,31 @@ import useAuthStore from '../../store/authStore';
 import { formatTimeAgo } from '../../utils/dateUtils';
 import axios from 'axios';
 
-const HomeScreen = () => {
-  const [searchQuery, setSearchQuery] = useState('');
-  const [carData, setCarData] = useState([]); // Ensure empty array by default
+const MyAds = () => {
+  const [carData, setCarData] = useState([]);
   const navigation = useNavigation();
   const { token, isAuthenticated, favorites, addFavorite, removeFavorite } = useAuthStore();
 
   const getBaseUrl = () => {
     if (Platform.OS === 'ios') {
-      return 'http://localhost:5000'; // Replace with your machine's IP for physical iOS
+      return 'http://localhost:5000'; // iOS device
     } else {
       return 'http://10.0.2.2:5000'; // Android emulator
     }
   };
 
-  const fetchCars = async () => {
+  const fetchMyAds = async () => {
     if (!isAuthenticated || !token) {
-      Alert.alert('Error', 'Please log in to view ads');
-      navigation.navigate('LoginScreen');
+      Alert.alert('Error', 'Please log in to view your ads', [
+        { text: 'OK', onPress: () => navigation.navigate('LoginScreen') },
+      ]);
       return;
     }
 
     try {
-      const response = await axios.get(`${getBaseUrl()}/api/auth/ads`, {
+      const response = await axios.get(`${getBaseUrl()}/api/auth/my-ads`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      console.log('Fetched ads response:', response.data);
       if (Array.isArray(response.data.ads)) {
         setCarData(response.data.ads);
       } else {
@@ -50,33 +46,28 @@ const HomeScreen = () => {
         setCarData([]);
       }
     } catch (error) {
-      console.error('Error fetching ads:', error.response?.data || error.message);
-      Alert.alert('Error', 'Failed to fetch ads');
+      console.error('Error fetching my ads:', error.response?.data || error.message);
+      Alert.alert('Error', 'Failed to fetch your ads. Please try again.');
       setCarData([]);
     }
   };
 
   useEffect(() => {
-    fetchCars();
-  }, [token, isAuthenticated]);
+    fetchMyAds();
+  }, [token, isAuthenticated, navigation]);
 
   useFocusEffect(
     React.useCallback(() => {
-      fetchCars();
+      fetchMyAds();
     }, [])
   );
 
-  const filteredCars = carData.filter((car) =>
-    car?.model?.toLowerCase().includes(searchQuery.toLowerCase()) || ''
-  );
-
   const toggleFavorite = (carId) => {
+    if (!carId) return;
     if (favorites.includes(carId)) {
       removeFavorite(carId);
-      console.log('Favorites: Removed', carId);
     } else {
       addFavorite(carId);
-      console.log('Favorites: Added', carId);
     }
   };
 
@@ -85,7 +76,7 @@ const HomeScreen = () => {
     const price = item?.price || 'PKR N/A';
     const location = item?.location || 'Unknown Location';
     const timestamp = item?.timestamp || new Date().toISOString();
-    const carId = item.id || item._id;
+    const carId = item?._id || `fallback-${Math.random().toString()}`;
 
     return (
       <TouchableOpacity
@@ -99,7 +90,7 @@ const HomeScreen = () => {
               : require('../../assets/images/honda.png')
           }
           style={styles.carImage}
-          onError={(error) => console.log('Image load error for item:', carId, error.nativeEvent.error)}
+          onError={(error) => console.error('Image load error for item:', carId, error.nativeEvent.error)}
         />
         <View style={styles.info}>
           <Text style={styles.model}>{model}</Text>
@@ -126,75 +117,30 @@ const HomeScreen = () => {
   return (
     <SafeAreaProvider>
       <SafeAreaView style={styles.safeArea} edges={['top']}>
-        <KeyboardAvoidingView
-          style={styles.keyboardView}
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        >
-          <View style={styles.header}>
-            <TouchableOpacity
-              style={styles.headerIcon}
-              onPress={() => navigation.navigate('Profile')}
-            >
-              <Image
-                source={require('../../assets/images/user.png')}
-                style={styles.iconImage}
-              />
-            </TouchableOpacity>
-            <View style={styles.logoContainer}>
-              <Image
-                source={require('../../assets/images/logo.png')}
-                style={styles.logo}
-              />
-              <Text style={styles.logoText}>METAWHEELS</Text>
-            </View>
-            <TouchableOpacity
-              onPress={() => navigation.navigate('Notification')}
-              style={styles.headerIcon}
-            >
-              <Image
-                source={require('../../assets/images/bell.png')}
-                style={styles.iconImage}
-              />
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.container}>
-            <View style={styles.searchContainer}>
-              <Image
-                source={require('../../assets/images/search.png')}
-                style={styles.searchIcon}
-              />
-              <TextInput
-                style={styles.searchInput}
-                placeholder="Search cars.. models..."
-                placeholderTextColor="#999"
-                value={searchQuery}
-                onChangeText={setSearchQuery}
-              />
-              <TouchableOpacity style={styles.filterButton}>
-                <Image
-                  source={require('../../assets/images/filter.png')}
-                  style={styles.filterIcon}
-                  resizeMode="contain"
-                />
-              </TouchableOpacity>
-            </View>
-
-            <View style={styles.titleContainer}>
-              <Text style={styles.sectionTitle}>Latest Ads</Text>
-            </View>
-
-            <FlatList
-              data={filteredCars}
-              renderItem={renderCarItem}
-              keyExtractor={(item) => item._id || item.id || Math.random().toString()}
-              contentContainerStyle={styles.list}
-              ListEmptyComponent={<Text style={styles.emptyText}>No cars found</Text>}
-              keyboardShouldPersistTaps="handled"
-              showsVerticalScrollIndicator={false}
+        <View style={styles.header}>
+          
+          <View style={styles.logoContainer}>
+            <Image
+              source={require('../../assets/images/logo.png')}
+              style={styles.logo}
             />
+            <Text style={styles.logoText}>METAWHEELS</Text>
           </View>
-        </KeyboardAvoidingView>
+          
+        </View>
+        <View style={styles.container}>
+          <View style={styles.titleContainer}>
+            <Text style={styles.sectionTitle}>My Ads</Text>
+          </View>
+          <FlatList
+            data={carData}
+            renderItem={renderCarItem}
+            keyExtractor={(item) => item._id || `fallback-${Math.random().toString()}`}
+            contentContainerStyle={styles.list}
+            ListEmptyComponent={<Text style={styles.emptyText}>You have no ads posted</Text>}
+            showsVerticalScrollIndicator={false}
+          />
+        </View>
       </SafeAreaView>
     </SafeAreaProvider>
   );
@@ -205,13 +151,10 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#0A2540',
   },
-  keyboardView: {
-    flex: 1,
-  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    justifyContent: 'center',
     backgroundColor: '#0A2540',
     paddingHorizontal: 15,
     paddingVertical: 12,
@@ -251,40 +194,6 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     padding: 15,
-  },
-  searchContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 25,
-    paddingHorizontal: 15,
-    paddingVertical: 12,
-    marginBottom: 15,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  searchIcon: {
-    width: 20,
-    height: 20,
-    resizeMode: 'contain',
-    tintColor: '#00D9FF',
-    marginRight: 10,
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: 15,
-    color: '#333',
-  },
-  filterButton: {
-    padding: 5,
-  },
-  filterIcon: {
-    width: 22,
-    height: 22,
-    tintColor: '#00D9FF',
   },
   titleContainer: {
     marginBottom: 12,
@@ -363,4 +272,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default HomeScreen;
+export default MyAds;

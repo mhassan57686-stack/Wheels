@@ -11,6 +11,8 @@ import ForgotPassword from '../screens/Auth/ForgotPassward';
 import OTP from '../screens/Auth/OTP';
 import Signup from '../screens/Auth/Signup';
 import ChatListScreen from '../screens/Chat/ChatListScreen.jsx';
+import Favorites from '../screens/Profile/Favorites.jsx';
+import MyAds from '../screens/Profile/MyAds.jsx';
 const Stack = createStackNavigator();
 
 const MyStack = () => {
@@ -36,6 +38,9 @@ const MyStack = () => {
  <Stack.Screen name="ChatListScreen" component={ChatListScreen} />
 
   <Stack.Screen name="CarDetailsScreen" component={CarDetailsScreen} />
+  <Stack.Screen name="Favorites" component={Favorites} />
+    <Stack.Screen name="MyAds" component={MyAds} />
+
 
     </Stack.Navigator>
   );

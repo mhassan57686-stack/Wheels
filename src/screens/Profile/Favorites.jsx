@@ -17,11 +17,11 @@ import useAuthStore from '../../store/authStore';
 import { formatTimeAgo } from '../../utils/dateUtils';
 import axios from 'axios';
 
-const HomeScreen = () => {
+const FavoriteScreen = () => {
   const [searchQuery, setSearchQuery] = useState('');
-  const [carData, setCarData] = useState([]); // Ensure empty array by default
+  const [carData, setCarData] = useState([]);
   const navigation = useNavigation();
-  const { token, isAuthenticated, favorites, addFavorite, removeFavorite } = useAuthStore();
+  const { token, isAuthenticated, favorites } = useAuthStore();
 
   const getBaseUrl = () => {
     if (Platform.OS === 'ios') {
@@ -33,7 +33,7 @@ const HomeScreen = () => {
 
   const fetchCars = async () => {
     if (!isAuthenticated || !token) {
-      Alert.alert('Error', 'Please log in to view ads');
+      Alert.alert('Error', 'Please log in to view favorites');
       navigation.navigate('LoginScreen');
       return;
     }
@@ -42,7 +42,6 @@ const HomeScreen = () => {
       const response = await axios.get(`${getBaseUrl()}/api/auth/ads`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      console.log('Fetched ads response:', response.data);
       if (Array.isArray(response.data.ads)) {
         setCarData(response.data.ads);
       } else {
@@ -66,19 +65,9 @@ const HomeScreen = () => {
     }, [])
   );
 
-  const filteredCars = carData.filter((car) =>
-    car?.model?.toLowerCase().includes(searchQuery.toLowerCase()) || ''
-  );
-
-  const toggleFavorite = (carId) => {
-    if (favorites.includes(carId)) {
-      removeFavorite(carId);
-      console.log('Favorites: Removed', carId);
-    } else {
-      addFavorite(carId);
-      console.log('Favorites: Added', carId);
-    }
-  };
+  const filteredFavorites = carData
+    .filter((car) => favorites.includes(car.id || car._id))
+    .filter((car) => car?.model?.toLowerCase().includes(searchQuery.toLowerCase()) || '');
 
   const renderCarItem = ({ item }) => {
     const model = item?.model || 'Unknown Model';
@@ -107,18 +96,6 @@ const HomeScreen = () => {
           <Text style={styles.location}>{location}</Text>
           <Text style={styles.timestamp}>{formatTimeAgo(timestamp)}</Text>
         </View>
-        <TouchableOpacity
-          style={styles.favoriteButton}
-          onPress={() => toggleFavorite(carId)}
-        >
-          <Image
-            source={require('../../assets/images/heart.png')}
-            style={[
-              styles.favoriteIcon,
-              favorites.includes(carId) && styles.favoriteIconActive,
-            ]}
-          />
-        </TouchableOpacity>
       </TouchableOpacity>
     );
   };
@@ -131,15 +108,7 @@ const HomeScreen = () => {
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         >
           <View style={styles.header}>
-            <TouchableOpacity
-              style={styles.headerIcon}
-              onPress={() => navigation.navigate('Profile')}
-            >
-              <Image
-                source={require('../../assets/images/user.png')}
-                style={styles.iconImage}
-              />
-            </TouchableOpacity>
+           
             <View style={styles.logoContainer}>
               <Image
                 source={require('../../assets/images/logo.png')}
@@ -147,15 +116,7 @@ const HomeScreen = () => {
               />
               <Text style={styles.logoText}>METAWHEELS</Text>
             </View>
-            <TouchableOpacity
-              onPress={() => navigation.navigate('Notification')}
-              style={styles.headerIcon}
-            >
-              <Image
-                source={require('../../assets/images/bell.png')}
-                style={styles.iconImage}
-              />
-            </TouchableOpacity>
+            
           </View>
 
           <View style={styles.container}>
@@ -166,7 +127,7 @@ const HomeScreen = () => {
               />
               <TextInput
                 style={styles.searchInput}
-                placeholder="Search cars.. models..."
+                placeholder="Search favorites..."
                 placeholderTextColor="#999"
                 value={searchQuery}
                 onChangeText={setSearchQuery}
@@ -181,15 +142,15 @@ const HomeScreen = () => {
             </View>
 
             <View style={styles.titleContainer}>
-              <Text style={styles.sectionTitle}>Latest Ads</Text>
+              <Text style={styles.sectionTitle}>Favorites</Text>
             </View>
 
             <FlatList
-              data={filteredCars}
+              data={filteredFavorites}
               renderItem={renderCarItem}
               keyExtractor={(item) => item._id || item.id || Math.random().toString()}
               contentContainerStyle={styles.list}
-              ListEmptyComponent={<Text style={styles.emptyText}>No cars found</Text>}
+              ListEmptyComponent={<Text style={styles.emptyText}>No favorites yet</Text>}
               keyboardShouldPersistTaps="handled"
               showsVerticalScrollIndicator={false}
             />
@@ -211,7 +172,7 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    justifyContent: 'center',
     backgroundColor: '#0A2540',
     paddingHorizontal: 15,
     paddingVertical: 12,
@@ -337,21 +298,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#999',
   },
-  favoriteButton: {
-    padding: 10,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  favoriteIcon: {
-    width: 24,
-    height: 24,
-    tintColor: '#999',
-    resizeMode: 'contain',
-    marginBottom: 35,
-  },
-  favoriteIconActive: {
-    tintColor: '#a77e7eff',
-  },
   list: {
     paddingBottom: 20,
   },
@@ -363,4 +309,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default HomeScreen;
+export default FavoriteScreen;
