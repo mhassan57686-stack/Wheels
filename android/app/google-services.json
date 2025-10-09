@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "163382322001",
+    "project_id": "wheels-a55b1",
+    "storage_bucket": "wheels-a55b1.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:163382322001:android:46d3111ee5395462dba970",
+        "android_client_info": {
+          "package_name": "com.Wheels"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDKA5thKbN_s_EKMbUlQTQHaKeULi_1pq0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

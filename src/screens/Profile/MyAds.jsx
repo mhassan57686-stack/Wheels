@@ -36,7 +36,7 @@ const MyAds = () => {
     }
 
     try {
-      const response = await axios.get(`${getBaseUrl()}/api/auth/my-ads`, {
+      const response = await axios.get(`${getBaseUrl()}/api/cars/my-ads`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (Array.isArray(response.data.ads)) {

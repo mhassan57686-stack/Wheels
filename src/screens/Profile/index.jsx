@@ -44,7 +44,7 @@ const Profile = () => {
         return;
       }
 
-      const url = `${getBaseUrl()}/api/auth/profile`;
+      const url = `${getBaseUrl()}/api/users/profile`;
       console.log('Fetching profile from:', url);
       console.log('Token:', token.substring(0, 20) + '...');
 
@@ -149,9 +149,9 @@ const Profile = () => {
         name: asset.fileName || `profile_${Date.now()}.jpg`,
       });
 
-      console.log('Uploading image to:', `${getBaseUrl()}/api/auth/upload-profile-image`);
+      console.log('Uploading image to:', `${getBaseUrl()}/api/users/upload-profile-image`);
       const response = await axios.post(
-        `${getBaseUrl()}/api/auth/upload-profile-image`,
+        `${getBaseUrl()}/api/users/upload-profile-image`,
         formData,
         {
           headers: {
@@ -208,7 +208,7 @@ const Profile = () => {
     try {
       console.log('Updating profile with data:', { name, phone, cnic, address });
       const response = await axios.put(
-        `${getBaseUrl()}/api/auth/profile`,
+        `${getBaseUrl()}/api/users/profile`,
         { name, phone, cnic, address },
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -364,7 +364,7 @@ const Profile = () => {
                 <Image source={require('../../assets/images/car.png')} style={styles.optionIcon} />
                 <Text style={styles.optionText}>My Ads</Text>
               </View>
-              <Image source={require('../../assets/images/back.png')} style={styles.arrowIcon} />
+              <Image source={require('../../assets/images/right.png')} style={styles.arrowIcon} />
             </TouchableOpacity>
 
             <TouchableOpacity onPress={()=>navigation.navigate("Favorites")} style={styles.optionItem}>
@@ -372,7 +372,7 @@ const Profile = () => {
                 <Image source={require('../../assets/images/heart.png')} style={styles.optionIcon} />
                 <Text style={styles.optionText}>Favorites</Text>
               </View>
-              <Image source={require('../../assets/images/back.png')} style={styles.arrowIcon} />
+              <Image source={require('../../assets/images/right.png')} style={styles.arrowIcon} />
             </TouchableOpacity>
 
             <TouchableOpacity style={styles.optionItem}>
@@ -380,7 +380,7 @@ const Profile = () => {
                 <Image source={require('../../assets/images/settings.png')} style={styles.optionIcon} />
                 <Text style={styles.optionText}>Settings</Text>
               </View>
-              <Image source={require('../../assets/images/back.png')} style={styles.arrowIcon} />
+              <Image source={require('../../assets/images/right.png')} style={styles.arrowIcon} />
             </TouchableOpacity>
 
             <TouchableOpacity style={[styles.optionItem, styles.logoutItem]} onPress={handleLogout}>

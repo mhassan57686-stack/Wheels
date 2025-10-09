@@ -101,7 +101,7 @@ const ChatListScreen = () => {
     try {
       if (!token) return;
 
-      const response = await fetch(`${baseUrl}/api/auth/conversations`, {
+      const response = await fetch(`${baseUrl}/api/chats/conversations`, {
         headers: { Authorization: `Bearer ${token}` },
       });
 
@@ -131,14 +131,15 @@ const ChatListScreen = () => {
   const renderItem = ({ item }) => (
     <TouchableOpacity
       style={styles.item}
-      onPress={() =>
+      onPress={() => {
+        console.log('Navigating to ChatScreen with params:', { carId: item.carId, carModel: item.carModel, otherUserId: item.otherUserId, otherUserName: item.otherUserName });
         navigation.navigate('ChatScreen', {
           carId: item.carId,
           carModel: item.carModel,
           otherUserId: item.otherUserId,
           otherUserName: item.otherUserName,
-        })
-      }
+        });
+      }}
     >
       <Image
         source={require('../../assets/images/chat.png')}

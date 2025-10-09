@@ -53,7 +53,7 @@ const PostScreen = () => {
         });
 
         const response = await axios.post(
-          `${getBaseUrl()}/api/auth/post-ad`,
+          `${getBaseUrl()}/api/cars/post-ad`,
           formData,
           {
             headers: {

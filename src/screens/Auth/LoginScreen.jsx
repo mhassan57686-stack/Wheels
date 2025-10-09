@@ -43,12 +43,12 @@ const LoginScreen = () => {
     const baseUrl = getBaseUrl();
 
     console.log('Request body:', { email, password });
-    console.log('API URL:', `${baseUrl}/api/auth/login`);
+    console.log('API URL:', `${baseUrl}/api/users/login`);
 
     try {
       const response = await axios({
         method: 'POST',
-        url: `${baseUrl}/api/auth/login`,
+        url: `${baseUrl}/api/users/login`,
         data: { email, password },
         timeout: 10000,
         headers: {

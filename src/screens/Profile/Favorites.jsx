@@ -39,7 +39,7 @@ const FavoriteScreen = () => {
     }
 
     try {
-      const response = await axios.get(`${getBaseUrl()}/api/auth/ads`, {
+      const response = await axios.get(`${getBaseUrl()}/api/cars/ads`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (Array.isArray(response.data.ads)) {

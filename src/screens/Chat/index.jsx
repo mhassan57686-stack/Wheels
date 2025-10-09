@@ -16,6 +16,7 @@ import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import io from 'socket.io-client';
 import axios from 'axios';
+import notifee, { AndroidImportance } from '@notifee/react-native';
 import useAuthStore from '../../store/authStore'; // Your authStore
 
 const ChatScreen = () => {
@@ -64,7 +65,7 @@ const ChatScreen = () => {
       console.log('Fetching messages with token from authStore');
       
       const response = await axios.get(
-        `${getBaseUrl()}/api/auth/chat-messages/${carId}/${otherUserId}`,
+        `${getBaseUrl()}/api/chats/chat-messages/${carId}/${otherUserId}`,
         { 
           headers: { 
             Authorization: `Bearer ${token}`,
@@ -230,6 +231,28 @@ const ChatScreen = () => {
       Alert.alert('Error', 'Failed to send message');
     }
   };
+
+  // Foreground local notification without Firebase
+  useEffect(() => {
+    const showLocalNotification = async (title, body) => {
+      try {
+        await notifee.createChannel({ id: 'chat', name: 'Chat', importance: AndroidImportance.HIGH });
+        await notifee.displayNotification({
+          title,
+          body,
+          android: { channelId: 'chat', pressAction: { id: 'default' } },
+        });
+      } catch (e) {}
+    };
+    if (!socket) return;
+    const onReceive = (message) => {
+      if (String(message.receiverId) === String(currentUserId)) {
+        showLocalNotification('New message', message.text || '');
+      }
+    };
+    socket.on('receive_message', onReceive);
+    return () => socket.off('receive_message', onReceive);
+  }, [socket, currentUserId]);
 
   const renderMessageItem = ({ item }) => {
     const isCurrentUser = String(item.senderId) === String(currentUserId);

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -8,7 +8,13 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useIsFocused } from '@react-navigation/native';
+import axios from 'axios';
+import { Platform } from 'react-native';
+import useAuthStore from '../../store/authStore';
+import io from 'socket.io-client';
+
+const getBaseUrl = () => Platform.OS === 'ios' ? 'http://localhost:5000' : 'http://10.0.2.2:5000';
 
 const notificationData = [
   {
@@ -43,6 +49,38 @@ const notificationData = [
 
 const Notification = () => {
   const navigation = useNavigation();
+  const isFocused = useIsFocused();
+  const { token } = useAuthStore();
+  const [items, setItems] = useState([]);
+
+  const fetchNotifications = async () => {
+    try {
+      if (!token) return;
+      const res = await axios.get(`${getBaseUrl()}/api/notifications`, { headers: { Authorization: `Bearer ${token}` } });
+      const list = (res.data?.notifications || []).map((n) => ({
+        id: String(n._id),
+        title: 'New message',
+        message: n.message,
+        time: new Date(n.timestamp).toLocaleString(),
+        icon: require('../../assets/images/message.png'),
+      }));
+      setItems(list);
+    } catch (e) {
+      console.log('fetch notifications error', e?.response?.data || e?.message || e);
+    }
+  };
+
+  useEffect(() => { if (isFocused) fetchNotifications(); }, [isFocused, token]);
+
+  useEffect(() => {
+    const socket = io(getBaseUrl(), { transports: ['websocket'] });
+    const onNotify = () => fetchNotifications();
+    socket.on('receive_notification', onNotify);
+    return () => {
+      socket.off('receive_notification', onNotify);
+      socket.disconnect();
+    };
+  }, []);
 
   const renderNotificationItem = ({ item }) => (
     <View style={styles.notificationCard}>
@@ -76,7 +114,7 @@ const Notification = () => {
 
         <View style={styles.container}>
           <FlatList
-            data={notificationData}
+            data={items}
             renderItem={renderNotificationItem}
             keyExtractor={(item) => item.id}
             contentContainerStyle={styles.list}

@@ -47,7 +47,7 @@ const Signup = () => {
     try {
       const response = await axios({
         method: 'POST',
-        url: `${baseUrl}/api/auth/signup`,
+        url: `${baseUrl}/api/users/signup`,
         data: { email, password, confirmPassword },
         timeout: 10000,
         headers: {
