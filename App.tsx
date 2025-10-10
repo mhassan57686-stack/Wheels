@@ -1,10 +1,11 @@
 import React, { useEffect } from 'react'
+import { Platform } from 'react-native'
 import {NavigationContainer} from "@react-navigation/native";
 import MyStack from "./src/navigation/MyStack";
 
 import {SocketProvider} from "./src/utils/useSocket";
 import notifee, { AndroidImportance } from '@notifee/react-native';
-import OneSignal from 'react-native-onesignal';
+import messaging from '@react-native-firebase/messaging';
 import useAuthStore from './src/store/authStore';
 
 export default function App() {
@@ -14,27 +15,54 @@ export default function App() {
     (async () => {
       try {
         await notifee.createChannel({ id: 'chat', name: 'Chat', importance: AndroidImportance.HIGH });
+        // Android 13+ explicit permission
+        if (Platform.OS === 'android' && Platform.Version >= 33) {
+          await notifee.requestPermission();
+        }
       } catch {}
     })();
   }, []);
 
   useEffect(() => {
-    try {
-      const appId = 'a9bf72ec-682c-48ff-89cb-5f647ac32db7';
-      if (!appId) return;
-      if (OneSignal && OneSignal.initialize) {
-        OneSignal.initialize(appId);
-        if (OneSignal.Notifications?.requestPermission) {
-          OneSignal.Notifications.requestPermission(true);
+    (async () => {
+      try {
+        if (Platform.OS === 'ios') return; // Skip iOS until GoogleService-Info.plist is added
+        const authStatus = await messaging().requestPermission();
+        const enabled = authStatus === messaging.AuthorizationStatus.AUTHORIZED || authStatus === messaging.AuthorizationStatus.PROVISIONAL;
+        if (!enabled) return;
+
+        const fcmToken = await messaging().getToken();
+        if (!fcmToken) return;
+
+        if (isAuthenticated && token) {
+          try {
+            await fetch((Platform.OS === 'ios' ? 'http://localhost:5000' : 'http://10.0.2.2:5000') + '/api/users/device-token', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+              body: JSON.stringify({ token: fcmToken }),
+            });
+          } catch {}
         }
-        if (isAuthenticated && user?._id && OneSignal.login) {
-          OneSignal.login(String(user._id));
+      } catch {}
+    })();
+
+    if (Platform.OS === 'ios') return () => {};
+    const unsubscribeRefresh = messaging().onTokenRefresh(async (newToken) => {
+      try {
+        if (isAuthenticated && token && newToken) {
+          await fetch((Platform.OS === 'ios' ? 'http://localhost:5000' : 'http://10.0.2.2:5000') + '/api/users/device-token', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            body: JSON.stringify({ token: newToken }),
+          });
         }
-      }
-    } catch (e) {
-      // Avoid crashing if native module not linked on iOS simulator
-    }
-  }, [isAuthenticated, user?._id]);
+      } catch {}
+    });
+
+    return () => {
+      unsubscribeRefresh();
+    };
+  }, [isAuthenticated, token]);
   return (
     <SocketProvider>
       <NavigationContainer>
